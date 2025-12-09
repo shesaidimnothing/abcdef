@@ -1,36 +1,53 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Secure Code Vault
 
-## Getting Started
+A secure, encrypted code storage system with syntax highlighting. Single-user system with automatic user creation.
 
-First, run the development server:
+## Quick Start
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+1. **Set up environment variables:**
+   Copy `.env.example` to `.env.local` and fill in your values:
+   ```bash
+   cp .env.example .env.local
+   ```
+   
+   Required variables:
+   - `DATABASE_URL`: Your PostgreSQL connection string
+   - `ENCRYPTION_KEY`: At least 32 characters (generate with `openssl rand -base64 32`)
+   - `DEFAULT_USERNAME`: 128-character username for the single user account
+   - `DEFAULT_PASSWORD`: 128-character password for the single user account
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. **Initialize database and create user:**
+   ```bash
+   npm run dev
+   ```
+   Then call:
+   ```bash
+   curl -X POST http://localhost:3000/api/init
+   ```
+   The user is automatically created using `DEFAULT_USERNAME` and `DEFAULT_PASSWORD` from your `.env.local` file.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+4. **Login:**
+   Use the `DEFAULT_USERNAME` and `DEFAULT_PASSWORD` from your `.env.local` file to login.
 
-## Learn More
+## Features
 
-To learn more about Next.js, take a look at the following resources:
+- 🔐 AES-256 encryption for all stored content
+- 🎨 Automatic code syntax highlighting
+- 📝 IDE-like code editor with formatting preservation
+- 🛡️ Secure authentication and session management
+- ⚡ Rate limiting and security headers
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Security
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- All content is encrypted before storage
+- Secure password hashing (bcrypt)
+- Session-based authentication
+- Rate limiting on all endpoints
+- SQL injection prevention
+- XSS protection
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
