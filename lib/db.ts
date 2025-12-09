@@ -1,5 +1,8 @@
 import { Pool, QueryResult, QueryResultRow } from 'pg';
 
+// Lazy initialization of database pool
+let pool: Pool | null = null;
+
 // Parse connection string and configure SSL for Neon
 const getPoolConfig = () => {
   const connectionString = process.env.DATABASE_URL;
@@ -27,17 +30,30 @@ const getPoolConfig = () => {
   };
 };
 
-// Secure database connection pool
-const pool = new Pool(getPoolConfig());
-
-// Prevent connection leaks
-pool.on('error', (err) => {
-  console.error('Unexpected error on idle client', err);
-  // Don't exit in development - just log
-  if (process.env.NODE_ENV === 'production') {
-    process.exit(-1);
+// Get or create database connection pool (lazy initialization)
+const getPool = (): Pool => {
+  if (!pool) {
+    // Only initialize pool at runtime, not during build
+    if (typeof window === 'undefined' && process.env.DATABASE_URL) {
+      pool = new Pool(getPoolConfig());
+      
+      // Prevent connection leaks
+      pool.on('error', (err) => {
+        console.error('Unexpected error on idle client', err);
+        // Don't exit in development - just log
+        if (process.env.NODE_ENV === 'production') {
+          process.exit(-1);
+        }
+      });
+    } else if (!process.env.DATABASE_URL) {
+      throw new Error('DATABASE_URL is not set');
+    }
   }
-});
+  if (!pool) {
+    throw new Error('Database pool not initialized');
+  }
+  return pool;
+};
 
 // Secure query function with parameterized queries (prevents SQL injection)
 export async function query<T extends QueryResultRow = any>(
@@ -46,11 +62,24 @@ export async function query<T extends QueryResultRow = any>(
 ): Promise<QueryResult<T>> {
   const start = Date.now();
   try {
-    if (!process.env.DATABASE_URL) {
+    // Check if we're in a build context (Next.js build phase)
+    // During build, we skip actual database queries
+    if (process.env.NEXT_PHASE === 'phase-production-build' || !process.env.DATABASE_URL) {
+      // During build, return a mock result to allow static analysis
+      if (process.env.NEXT_PHASE === 'phase-production-build') {
+        return {
+          rows: [],
+          rowCount: 0,
+          command: 'SELECT',
+          oid: 0,
+          fields: [],
+        } as QueryResult<T>;
+      }
       throw new Error('DATABASE_URL environment variable is not set');
     }
     
-    const res = await pool.query<T>(text, params);
+    const dbPool = getPool();
+    const res = await dbPool.query<T>(text, params);
     const duration = Date.now() - start;
     // Log slow queries in production
     if (duration > 1000) {
@@ -214,4 +243,4 @@ export async function initDatabase() {
   }
 }
 
-export default pool;
+export default getPool;
