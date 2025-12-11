@@ -217,24 +217,7 @@ export default function TextSafe({ user, onLogout }: TextSafeProps) {
   return (
     <div className="min-h-screen bg-white p-4">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="bg-white border-2 border-black rounded-lg shadow-lg p-6 mb-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-black mb-2">
-                🔒 Secure Code Vault
-              </h1>
-              <p className="text-gray-600">
-                Welcome, <span className="font-semibold text-black">{user.username}</span>
-              </p>
-            </div>
-            <button
-              onClick={onLogout}
-              className="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors border-2 border-black"
-            >
-              Logout
-            </button>
-          </div>
+        <div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
