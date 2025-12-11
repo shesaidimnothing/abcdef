@@ -46,12 +46,28 @@ export async function GET(
     }
 
     // Get text (only if owned by user)
-    const result = await query(
-      `SELECT id, encrypted_content, iv, created_at, updated_at
-       FROM encrypted_texts
-       WHERE id = $1 AND user_id = $2`,
-      [textId, user.id]
-    );
+    // Try to select name columns - handle case where they don't exist yet
+    let result;
+    try {
+      result = await query(
+        `SELECT id, encrypted_content, iv, encrypted_name, name_iv, created_at, updated_at
+         FROM encrypted_texts
+         WHERE id = $1 AND user_id = $2`,
+        [textId, user.id]
+      );
+    } catch (error: any) {
+      // If columns don't exist, fall back to query without name columns
+      if (error.code === '42703') { // Column does not exist
+        result = await query(
+          `SELECT id, encrypted_content, iv, created_at, updated_at
+           FROM encrypted_texts
+           WHERE id = $1 AND user_id = $2`,
+          [textId, user.id]
+        );
+      } else {
+        throw error;
+      }
+    }
 
     if (result.rows.length === 0) {
       return setSecurityHeaders(
@@ -62,10 +78,22 @@ export async function GET(
     const row = result.rows[0];
     try {
       const decrypted = decryptText(row.encrypted_content, row.iv);
+      let decryptedName = '';
+      
+      // Try to decrypt name if it exists
+      if (row.encrypted_name && row.name_iv) {
+        try {
+          decryptedName = decryptText(row.encrypted_name, row.name_iv);
+        } catch (nameError) {
+          console.error('Name decryption error:', nameError);
+        }
+      }
+      
       return setSecurityHeaders(
         NextResponse.json(
           {
             id: row.id,
+            name: decryptedName,
             content: decrypted,
             created_at: row.created_at,
             updated_at: row.updated_at,
@@ -136,7 +164,16 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { content } = body;
+    const { name, content } = body;
+
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      return setSecurityHeaders(
+        NextResponse.json(
+          { error: 'File name is required' },
+          { status: 400 }
+        )
+      );
+    }
 
     if (!content || typeof content !== 'string') {
       return setSecurityHeaders(
@@ -147,20 +184,39 @@ export async function PUT(
       );
     }
 
-    // Sanitize content
+    // Sanitize content and name
     const sanitizedContent = sanitizeInput(content, 1000000);
+    const sanitizedName = sanitizeInput(name.trim(), 255);
 
-    // Encrypt content
+    // Encrypt content and name
     const { encrypted, iv } = encryptText(sanitizedContent);
+    const { encrypted: encryptedName, iv: nameIv } = encryptText(sanitizedName);
 
-    // Update text (only if owned by user)
-    const result = await query(
-      `UPDATE encrypted_texts
-       SET encrypted_content = $1, iv = $2, updated_at = NOW()
-       WHERE id = $3 AND user_id = $4
-       RETURNING id, updated_at`,
-      [encrypted, iv, textId, user.id]
-    );
+    // Update text (only if owned by user) - try with name columns first
+    let result;
+    try {
+      result = await query(
+        `UPDATE encrypted_texts
+         SET encrypted_content = $1, iv = $2, encrypted_name = $3, name_iv = $4, updated_at = NOW()
+         WHERE id = $5 AND user_id = $6
+         RETURNING id, updated_at`,
+        [encrypted, iv, encryptedName, nameIv, textId, user.id]
+      );
+    } catch (error: any) {
+      // If columns don't exist, return error telling user to run migration
+      if (error.code === '42703') { // Column does not exist
+        return setSecurityHeaders(
+          NextResponse.json(
+            { 
+              error: 'Database migration required. Please run: curl -X POST http://localhost:3000/api/init',
+              details: 'The encrypted_name and name_iv columns need to be added to the database.'
+            },
+            { status: 500 }
+          )
+        );
+      }
+      throw error;
+    }
 
     if (result.rows.length === 0) {
       return setSecurityHeaders(

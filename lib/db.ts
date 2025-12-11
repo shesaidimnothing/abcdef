@@ -160,9 +160,30 @@ export async function initDatabase() {
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         encrypted_content TEXT NOT NULL,
         iv VARCHAR(255) NOT NULL,
+        encrypted_name TEXT,
+        name_iv VARCHAR(255),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
+    `);
+    
+    // Add encrypted_name and name_iv columns if they don't exist (migration for existing databases)
+    await query(`
+      DO $$ 
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'encrypted_texts' AND column_name = 'encrypted_name'
+        ) THEN
+          ALTER TABLE encrypted_texts ADD COLUMN encrypted_name TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'encrypted_texts' AND column_name = 'name_iv'
+        ) THEN
+          ALTER TABLE encrypted_texts ADD COLUMN name_iv VARCHAR(255);
+        END IF;
+      END $$;
     `);
 
     // Create indexes for performance

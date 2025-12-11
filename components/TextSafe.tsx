@@ -6,6 +6,7 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 interface Text {
   id: number;
+  name: string;
   content: string;
   created_at: string;
   updated_at: string;
@@ -75,6 +76,7 @@ function detectLanguage(content: string): string {
 export default function TextSafe({ user, onLogout }: TextSafeProps) {
   const [texts, setTexts] = useState<Text[]>([]);
   const [selectedText, setSelectedText] = useState<Text | null>(null);
+  const [name, setName] = useState('');
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -109,6 +111,11 @@ export default function TextSafe({ user, onLogout }: TextSafeProps) {
       return;
     }
 
+    if (!name.trim()) {
+      setError('File name cannot be empty');
+      return;
+    }
+
     try {
       setSaving(true);
       setError('');
@@ -119,7 +126,7 @@ export default function TextSafe({ user, onLogout }: TextSafeProps) {
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ content }),
+          body: JSON.stringify({ name: name.trim(), content }),
         });
 
         const data = await response.json();
@@ -130,6 +137,7 @@ export default function TextSafe({ user, onLogout }: TextSafeProps) {
 
         await loadTexts();
         setSelectedText(null);
+        setName('');
         setContent('');
         setViewMode('edit');
       } else {
@@ -138,7 +146,7 @@ export default function TextSafe({ user, onLogout }: TextSafeProps) {
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ content }),
+          body: JSON.stringify({ name: name.trim(), content }),
         });
 
         const data = await response.json();
@@ -148,6 +156,7 @@ export default function TextSafe({ user, onLogout }: TextSafeProps) {
         }
 
         await loadTexts();
+        setName('');
         setContent('');
         setViewMode('edit');
       }
@@ -177,6 +186,7 @@ export default function TextSafe({ user, onLogout }: TextSafeProps) {
       await loadTexts();
       if (selectedText?.id === id) {
         setSelectedText(null);
+        setName('');
         setContent('');
         setViewMode('edit');
       }
@@ -187,6 +197,7 @@ export default function TextSafe({ user, onLogout }: TextSafeProps) {
 
   const handleSelectText = (text: Text) => {
     setSelectedText(text);
+    setName(text.name || '');
     setContent(text.content);
     setError('');
     setViewMode('edit'); // Start in edit mode to see the code properly
@@ -194,6 +205,7 @@ export default function TextSafe({ user, onLogout }: TextSafeProps) {
 
   const handleNewText = () => {
     setSelectedText(null);
+    setName('');
     setContent('');
     setError('');
     setViewMode('edit');
@@ -258,7 +270,7 @@ export default function TextSafe({ user, onLogout }: TextSafeProps) {
                       onClick={() => handleSelectText(text)}
                     >
                       <div className={`font-medium mb-1 ${selectedText?.id === text.id ? 'text-white' : 'text-black'}`}>
-                        File #{text.id}
+                        {text.name || `File #${text.id}`}
                       </div>
                       <div className={`text-xs mb-2 ${selectedText?.id === text.id ? 'text-gray-300' : 'text-gray-600'}`}>
                         {new Date(text.updated_at).toLocaleString()}
@@ -322,6 +334,21 @@ export default function TextSafe({ user, onLogout }: TextSafeProps) {
                 </div>
               )}
 
+              <div className="mb-4">
+                <label htmlFor="file-name" className="block text-black text-sm font-medium mb-2">
+                  File Name
+                </label>
+                <input
+                  id="file-name"
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Enter file name..."
+                  className="w-full px-4 py-2 bg-white border-2 border-gray-300 rounded-lg text-black placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-black"
+                  maxLength={255}
+                />
+              </div>
+
               {viewMode === 'edit' ? (
                 <textarea
                   value={content}
@@ -382,6 +409,7 @@ export default function TextSafe({ user, onLogout }: TextSafeProps) {
                     <button
                       onClick={() => {
                         setSelectedText(null);
+                        setName('');
                         setContent('');
                         setError('');
                         setViewMode('edit');
@@ -393,7 +421,7 @@ export default function TextSafe({ user, onLogout }: TextSafeProps) {
                   )}
                   <button
                     onClick={handleSave}
-                    disabled={saving || !content.trim()}
+                    disabled={saving || !content.trim() || !name.trim()}
                     className="px-6 py-2 bg-black text-white font-semibold rounded-lg hover:bg-gray-800 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed border-2 border-black"
                   >
                     {saving ? 'Saving...' : selectedText ? 'Update' : 'Save'}
